@@ -9,6 +9,8 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+
 
 
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
@@ -63,12 +65,31 @@ async function run() {
             res.send({ count })
         })
 
-        app.get("/product-details/:id", async(req, res) => {
+        app.get("/product-details/:id", async (req, res) => {
             const id = req.params.id;
-            const query = {_id: new ObjectId(id)};
+            const query = { _id: new ObjectId(id) };
             const result = await productsCollection.findOne(query);
             res.send(result)
         })
+
+        app.post("/create-payment-intent", async (req, res) => {
+            const price = req.body.price;
+            const priceInCents = parseFloat(price) * 100;
+
+            // Create a PaymentIntent with the order amount and currency
+            const paymentIntent = await stripe.paymentIntents.create({
+                amount: priceInCents,
+                currency: "usd",
+                // In the latest version of the API, specifying the `automatic_payment_methods` parameter is optional because Stripe enables its functionality by default.
+                automatic_payment_methods: {
+                    enabled: true,
+                },
+            });
+
+            res.send({
+                clientSecret: paymentIntent.client_secret,
+            });
+        });
 
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });
